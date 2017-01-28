@@ -41,14 +41,17 @@ class TrueSentenceGenerator:
 
     def __isStabilised__(self):
         return self.prev_stat == self.stat
+        
+    def __count_stat__(self, sentence):
+        s = sentence.lower()
+        return {"words":Counter(map(lambda w:self.word_to_one[w] if w in self.word_to_one else w, self.tknzr.findall(s))),"symbols":Counter(s)}
 
     def __check__(self, sentence = None):
         if not sentence:
             sentence = self.prefix + self.infix + self.postfix
 
         self.prev_stat = self.stat
-        sentence = sentence.lower()
-        self.stat = {"words":Counter(map(lambda w:self.word_to_one[w] if w in self.word_to_one else w, self.tknzr.findall(sentence))),"symbols":Counter(sentence)}
+        self.stat = self.__count_stat__(sentence)
 
 if __name__ == "__main__":
     tg = TrueSentenceGenerator("","")
