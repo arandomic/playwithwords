@@ -17,7 +17,7 @@ class TrueSentenceGenerator:
             [user-prefix][self-descibed-part][user-postfix]
     """
 
-    def __init__(self, prefix, postfix):
+    def __init__(self, prefix, postfix, letter_count_type):
         self.symbols = '",.)(;!? '
         self.symbols_set = set(self.symbols)
         self.symbol_he = set('!? ')
@@ -31,7 +31,7 @@ class TrueSentenceGenerator:
         self.ltren = ["латинских букв", "латинская буква", "латинских буквы"]
         self.symbname = {'"':["кавычек", "кавычка", "кавычки"],',':["запятых", "запятая", "запятых"],'.':["точек", "точка", "точки"],'(':["левых скобок", "левая скобка", "левых скобки"],')':["правых скобок", "правая скобка", "правых скобки"],';':["точек с запятой", "точка с запятой", "точки с запятой"],'!':["восклицательных знаков", "восклицательный знак", "восклицательных знака"],'?':["знаков вопроса", "знак вопроса", "знака вопроса"]," ":["пробелов", "пробел", "пробела"]}
         self.word_to_one = dict()
-
+        self.letter_count_type = letter_count_type
         for words_line in itertools.chain([self.wrd, self.ltrru, self.ltren], self.symbname.values(), NumToWordsConverter.WORD_TO_ONE):
             for word in words_line:
                 word_slice = word.split(" ")
@@ -43,7 +43,7 @@ class TrueSentenceGenerator:
 
         self.prefix = prefix
         self.postfix = postfix
-        self.infix = ""        
+        self.infix = ""
         prefix_stat = self.__count_stat__(self.prefix)
         postfix_stat = self.__count_stat__(self.postfix)
         self.const_stat = {"words":prefix_stat["words"]+postfix_stat["words"],"symbols":prefix_stat["symbols"]+postfix_stat["symbols"]}
@@ -62,27 +62,30 @@ class TrueSentenceGenerator:
         self.stat = self.__count_stat__(self.infix)
 
     def __make_next__(self):
-        next_infix = ""            
+        next_infix = ""
         symbols = self.const_stat["symbols"]+self.stat["symbols"]
         ru_sym_count = 0
         en_sym_count = 0
+
         for sym in SortedDict(symbols):
             count = symbols[sym]
-            # if sym in self.ru_letter:
-                # next_infix += self.cv.convert(count,NumToWordsConverter.SHE) +' '+self.ltrru[self.cv.wordNumberDiscriminator(count)]+' "'+sym+'", '
-            # elif sym in self.en_letter:
-                # next_infix += self.cv.convert(count,NumToWordsConverter.SHE) +' '+self.ltren[self.cv.wordNumberDiscriminator(count)]+' "'+sym+'", '
             if sym in self.ru_letter:
-                ru_sym_count += count                
+                ru_sym_count += count
+                if self.letter_count_type == 'all':
+                    next_infix += self.cv.convert(count,NumToWordsConverter.SHE) +' '+self.ltrru[self.cv.wordNumberDiscriminator(count)]+' "'+sym+'", '
             elif sym in self.en_letter:
                 en_sym_count += count
+                if self.letter_count_type == 'all':
+                    next_infix += self.cv.convert(count,NumToWordsConverter.SHE) +' '+self.ltren[self.cv.wordNumberDiscriminator(count)]+' "'+sym+'", '
             elif sym in self.symbols_set:
                 next_infix += self.cv.convert(count,NumToWordsConverter.HE if sym in self.symbol_he else NumToWordsConverter.SHE) +' '+self.symbname[sym][self.cv.wordNumberDiscriminator(count)]+', '
-            
-        if ru_sym_count > 0:
-            next_infix += self.cv.convert(ru_sym_count,NumToWordsConverter.SHE) +' '+self.ltrru[self.cv.wordNumberDiscriminator(ru_sym_count)]+', '
-        if en_sym_count > 0:
-            next_infix += self.cv.convert(en_sym_count,NumToWordsConverter.SHE) +' '+self.ltren[self.cv.wordNumberDiscriminator(en_sym_count)]+', '
+
+        if self.letter_count_type == 'summ':
+            if ru_sym_count > 0:
+                next_infix += self.cv.convert(ru_sym_count,NumToWordsConverter.SHE) +' '+self.ltrru[self.cv.wordNumberDiscriminator(ru_sym_count)]+', '
+            if en_sym_count > 0:
+                next_infix += self.cv.convert(en_sym_count,NumToWordsConverter.SHE) +' '+self.ltren[self.cv.wordNumberDiscriminator(en_sym_count)]+', '
+
         pre = ''
         words = self.const_stat["words"]+self.stat["words"]
         for word in SortedDict(words):
@@ -105,11 +108,11 @@ class TrueSentenceGenerator:
                 self.__clean_selflinked__()
                 cur_infix_hash = hashlib.sha224(self.infix.encode()).hexdigest()
                 if cur_infix_hash in finded:
-                    raise Exception("cycled!")                    
+                    raise Exception("cycled!")
                 finded.add(cur_infix_hash)
         except Exception as e:
             pass
-            
+
         return current_try,self.infix
 
     def __clean_selflinked__(self):
@@ -117,24 +120,25 @@ class TrueSentenceGenerator:
         for word in words:
             if words[word] <= 1:
                 del self.stat["words"][word]
-                
+
     def generate(self):
         self.__make_next__()
         while not self.__isStabilised__():
             seed = " ".join(random.sample(self.tknzr.findall(self.prefix+self.infix+self.postfix)*100, 100))
             self.generateFromSeed(seed)
-            
+
     def getResult(self):
         return self.prefix+self.infix+self.postfix
-            
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='generate true self-described sentence')
-    parser.add_argument('--prefix', help="the sentence prefix (left space at the end)", default="В этом предложении ")
-    parser.add_argument('--postfix', help="the sentence postfix", default=" и полное единство формы и содержания.")
+    parser = argparse.ArgumentParser(description='Генерируем истинное самоописываюшее предложение')
+    parser.add_argument('--prefix', help="Неизменяемое начало предложения", default="В этом предложении ")
+    parser.add_argument('--postfix', help="Неизменяемое окончание предложения", default=" и полное единство формы и содержания.")
+    parser.add_argument('--letters', help="Способ перечисления букв - [all-отдельно по каждой букве|summ - количество латинских/русских букв|none - не учитывать] больше информации - дольше ждать", default="summ")
 
     args = parser.parse_args()
-    
-    generator = TrueSentenceGenerator(args.prefix, args.postfix)
+
+    generator = TrueSentenceGenerator(args.prefix, args.postfix, args.letters)
     generator.generate()
     print(generator.getResult())
 
