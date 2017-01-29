@@ -9,6 +9,7 @@ import re
 import itertools
 import hashlib
 import random
+import argparse
 
 class TrueSentenceGenerator:
     """
@@ -63,6 +64,8 @@ class TrueSentenceGenerator:
     def __make_next__(self):
         next_infix = ""            
         symbols = self.const_stat["symbols"]+self.stat["symbols"]
+        ru_sym_count = 0
+        en_sym_count = 0
         for sym in SortedDict(symbols):
             count = symbols[sym]
             # if sym in self.ru_letter:
@@ -70,17 +73,20 @@ class TrueSentenceGenerator:
             # elif sym in self.en_letter:
                 # next_infix += self.cv.convert(count,NumToWordsConverter.SHE) +' '+self.ltren[self.cv.wordNumberDiscriminator(count)]+' "'+sym+'", '
             if sym in self.ru_letter:
-                next_infix += self.cv.convert(count,NumToWordsConverter.SHE) +' '+self.ltrru[self.cv.wordNumberDiscriminator(count)]+' "'+sym+'", '
+                ru_sym_count += count                
             elif sym in self.en_letter:
-                next_infix += self.cv.convert(count,NumToWordsConverter.SHE) +' '+self.ltren[self.cv.wordNumberDiscriminator(count)]+' "'+sym+'", '
+                en_sym_count += count
             elif sym in self.symbols_set:
                 next_infix += self.cv.convert(count,NumToWordsConverter.HE if sym in self.symbol_he else NumToWordsConverter.SHE) +' '+self.symbname[sym][self.cv.wordNumberDiscriminator(count)]+', '
             
+        if ru_sym_count > 0:
+            next_infix += self.cv.convert(ru_sym_count,NumToWordsConverter.SHE) +' '+self.ltrru[self.cv.wordNumberDiscriminator(ru_sym_count)]+', '
+        if en_sym_count > 0:
+            next_infix += self.cv.convert(en_sym_count,NumToWordsConverter.SHE) +' '+self.ltren[self.cv.wordNumberDiscriminator(en_sym_count)]+', '
         pre = ''
         words = self.const_stat["words"]+self.stat["words"]
         for word in SortedDict(words):
             count = words[word]
-            # if count > 1 or word in self.const_stat["words"]:
             next_infix += pre + self.cv.convert(count,NumToWordsConverter.IT) +' '+self.wrd[self.cv.wordNumberDiscriminator(count)]+' "'+word
             pre = '", '
         next_infix = next_infix + '"'
@@ -96,6 +102,7 @@ class TrueSentenceGenerator:
                 current_try += 1
                 self.__make_next__()
                 self.__check_current__()
+                self.__clean_selflinked__()
                 cur_infix_hash = hashlib.sha224(self.infix.encode()).hexdigest()
                 if cur_infix_hash in finded:
                     raise Exception("cycled!")                    
@@ -105,19 +112,29 @@ class TrueSentenceGenerator:
             
         return current_try,self.infix
 
+    def __clean_selflinked__(self):
+        words = self.const_stat["words"]+self.stat["words"]
+        for word in words:
+            if words[word] <= 1:
+                del self.stat["words"][word]
+                
     def generate(self):
         self.__make_next__()
         while not self.__isStabilised__():
             seed = " ".join(random.sample(self.tknzr.findall(self.prefix+self.infix+self.postfix)*100, 100))
             self.generateFromSeed(seed)
             
+    def getResult(self):
+        return self.prefix+self.infix+self.postfix
+            
 if __name__ == "__main__":
-    tg = TrueSentenceGenerator(" "," ")
-    tg.generate()
+    parser = argparse.ArgumentParser(description='generate true self-described sentence')
+    parser.add_argument('--prefix', help="the sentence prefix (left space at the end)", default="В этом предложении ")
+    parser.add_argument('--postfix', help="the sentence postfix", default=" и полное единство формы и содержания.")
+
+    args = parser.parse_args()
     
-    print(SortedDict(tg.stat["words"]+tg.const_stat["words"]))
-    print(SortedDict(tg.stat["symbols"]+tg.const_stat["symbols"]))
-    stat = tg.__count_stat__(tg.prefix+tg.infix+tg.postfix)
-    print(SortedDict(stat["words"]))
-    print(SortedDict(stat["symbols"]))
-    print(tg.infix)
+    generator = TrueSentenceGenerator(args.prefix, args.postfix)
+    generator.generate()
+    print(generator.getResult())
+
